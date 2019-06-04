@@ -1,0 +1,97 @@
+#include "RestClient.h"
+#include <Ethernet.h>
+#include <LiquidCrystal_I2C.h>
+#include <SoftwareSerial.h>
+#include <SPI.h>
+
+#define DATALINE_PIN 2
+#define INVERTED 3
+
+SoftwareSerial mySerial(10, 11); // RX, TX
+LiquidCrystal_I2C lcd(0x27, 20, 4);
+
+byte mac[] = {
+  0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED
+};
+
+EthernetClient client;
+RestClient clientr = RestClient("ava.blugraph.services");
+
+void setup() {
+  Serial.begin(9600);
+  mySerial.begin(9600);
+  Serial.println("T");
+
+//  while (Ethernet.linkStatus() != LinkON) {
+//    Serial.println("Waiting for Link status: On");
+//    delay(1000);
+//  }
+// 
+  Serial.println("In DHCP:");
+  while (Ethernet.begin(mac) == 0){
+    delay (1000);
+    if (Ethernet.hardwareStatus() == EthernetNoHardware) {
+      Serial.println("Ethernet shield was not found.");
+  }
+    Serial.println("W dhcp");
+  }
+  
+  Serial.print("IP:");
+  Serial.println(Ethernet.localIP());
+  Serial.println("TF");
+  // give the Ethernet shield a second to initialize:
+  delay(1000);
+
+}
+
+void loop() {
+  Serial.println("l");
+  String sensorValue="";
+  while (sensorValue == NULL){
+    Serial.println("Waiting here");
+    while (mySerial.available() > 0) {
+      sensorValue=mySerial.readStringUntil('\n');
+    }
+  }
+  Serial.println("Second read");
+  Serial.println(sensorValue);
+
+  String results[8];
+  for (int i=0;i<8;i++){
+    results[i]=getValue(sensorValue, ',', i);
+    results[i].trim();
+    Serial.println(results[i]);
+  }
+
+  String sid="SFA01";
+  String tms = "01/06/2019 10:10:11";
+  String jstring = String ("{\"Time\":\"" + tms +"\",\"rdo\":"+"\""+results[0]+"\",\"Temp\":"+"\""+results[1]+"\",\"Chloro\":"+"\""+results[6]+"\",\"Depth\":"+"\""+results[8]+"\",\"pH\":"+"\""+results[7]+"\",\"Salinity\":"+"\""+results[3]+"\",\"Turbid\":"+"\""+results[4]+"\",\"Orp\":"+"\""+results[8]+"\",\"Station_ID\":"+"\""+ sid +"\"}"); // start "\""end "\"
+    const char* jstring1 = jstring.c_str(); // This function makes const Chkar* from Sting 
+    Serial.println(jstring1); 
+  
+    String response = "";
+    int statusCode = clientr.put("/rawdatamp.php", jstring1, &response);
+    Serial.print("St");
+    Serial.println(statusCode);
+    Serial.print("Re");
+    Serial.println(response);
+
+    delay (10000);
+
+}
+
+String getValue(String data, char separator, int index)
+{
+    int found = 0;
+    int strIndex[] = { 0, -1 };
+    int maxIndex = data.length() - 1;
+
+    for (int i = 0; i <= maxIndex && found <= index; i++) {
+        if (data.charAt(i) == separator || i == maxIndex) {
+            found++;
+            strIndex[0] = strIndex[1] + 1;
+            strIndex[1] = (i == maxIndex) ? i+1 : i;
+        }
+    }
+    return found > index ? data.substring(strIndex[0], strIndex[1]) : "";
+}
